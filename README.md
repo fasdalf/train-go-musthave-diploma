@@ -23,3 +23,7 @@ git fetch template && git checkout template/master .github
 ```
 
 Затем добавьте полученные изменения в свой репозиторий.
+
+На самом деле сходи по ссылке https://github.com/Yandex-Practicum/go-autotests/releases/latest и скачай собранный бинарь
+gophermarttest с тестами и statictest с анализатором.
+Подробности: https://github.com/Yandex-Practicum/go-autotests
