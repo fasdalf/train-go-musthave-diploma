@@ -21,3 +21,10 @@ vendor/
 # IDEs directories
 .idea
 .vscode
+
+# docker
+/deploy/docker/.env
+/deploy/docker/docker-compose.override.yml
+/docker-compose.override.yml
+/.env
+/deploy/data/logs/*

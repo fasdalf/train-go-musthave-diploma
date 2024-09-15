@@ -1,0 +1,5 @@
+services:
+  cli:
+#    command: go run cmd/server # to play with postman
+#    command: bash # for troubleshooting
+    command: ./test.sh 1 # check iteration 1
