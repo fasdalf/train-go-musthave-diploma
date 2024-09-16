@@ -16,8 +16,8 @@ func (w bodyLogWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// DumpResponseBodyHandler gin handler - for debug purposes only
-func DumpResponseBodyHandler(c *gin.Context) {
+// DumpResponseBody gin handler - for debug purposes only
+func DumpResponseBody(c *gin.Context) {
 	blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 	c.Writer = blw
 	c.Next()

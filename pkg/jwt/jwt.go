@@ -12,17 +12,16 @@ type Claims struct {
 }
 
 const (
-	TokenExp   = time.Hour * 3
 	AuthHeader = "Authorization"
 	AuthPrefix = "Bearer "
 )
 
 // BuildJWTString создаёт токен и возвращает его в виде строки
-func BuildJWTString(id uint, key string) (string, error) {
+func BuildJWTString(id uint, key string, exp time.Duration) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			// когда истекает токен
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExp)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(exp)),
 		},
 		// собственное утверждение
 		UserID: id,

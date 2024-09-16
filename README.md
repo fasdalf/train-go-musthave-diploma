@@ -10,6 +10,7 @@ gophermarttest с тестами и statictest с анализатором.
    1. `./vet.sh`
    1. `./test.sh`
 1. Для отладки выполни
+   1. внутри контейнера `go install github.com/go-delve/delve/cmd/dlv@1.23.0`
    1. внутри контейнера `dlv debug ./cmd/gophermart/main.go --listen :2345 --headless=true --api-version=2`
    1. снаружи контейнера подключиться к порту `40000` или к тому что указан в переменной `DELVE_EXTERNAL_PORT`
 

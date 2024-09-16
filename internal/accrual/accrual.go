@@ -16,11 +16,6 @@ import (
 )
 
 const (
-	workersCount  = 3
-	fetchTimeout  = 300 * time.Millisecond
-	fetchInterval = 400 * time.Millisecond
-	fetchFactor   = 10
-
 	orderStatusRegistered = "REGISTERED"
 	orderStatusInvalid    = "INVALID"
 	orderStatusProcessing = "PROCESSING"
@@ -28,6 +23,14 @@ const (
 
 	headerRetryAfter = "Retry-After"
 )
+
+type Config struct {
+	URL           string        `env:"ACCRUAL_SYSTEM_ADDRESS"`
+	WorkersCount  int           `env:"ACCRUAL_WORKERS_COUNT"`
+	FetchTimeout  time.Duration `env:"ACCRUAL_FETCH_TIMEOUT"`
+	FetchInterval time.Duration `env:"ACCRUAL_FETCH_INTERVAL"`
+	FetchFactor   int           `env:"ACCRUAL_FETCH_FACTOR"`
+}
 
 type accrualOrderResponse struct {
 	Order   string  `json:"order"`
@@ -45,14 +48,14 @@ func (e *errorTooManyRequests) Error() string {
 
 var errorNotRegistered = fmt.Errorf("order not registered")
 
-func StartChecker(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, addr string) {
-	wg.Add(workersCount)
-	for i := 0; i < workersCount; i++ {
-		go worker(ctx, wg, db, addr, i+1)
+func StartChecker(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, cfg *Config) {
+	wg.Add(cfg.WorkersCount)
+	for i := 0; i < cfg.WorkersCount; i++ {
+		go worker(ctx, wg, db, cfg, i+1)
 	}
 }
 
-func worker(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, addr string, id int) {
+func worker(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, cfg *Config, id int) {
 	defer wg.Done()
 	idlog := slog.With("worker", "accrualChecker", "id", id)
 	client := resty.New()
@@ -60,40 +63,18 @@ func worker(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, addr string, i
 	defer timer.Stop()
 	for {
 		timer.Stop()
-		err := (func() error {
-			c2, cancel2 := context.WithTimeout(ctx, fetchTimeout)
-			defer cancel2()
-
-			order, err := getOrderFromDB(c2, db)
-			if err != nil {
-				return err
-			}
-
-			accrual, err := getAccrual(c2, client, addr, order.OrderNumber)
-			if err != nil {
-				_ = setOrderStatus(db, order, getOrderFetchStatus(accrual, err))
-				return err
-			}
-
-			err = saveCheckResult(c2, db, order, accrual)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		})()
-
+		err := processOneOrder(ctx, cfg, db, client)
 		delay := time.Duration(0)
 		if err != nil {
 			idlog.Error("error while processing", "error", err)
 			// Sleep for some time if no new jobs.
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				delay = fetchInterval
+				delay = cfg.FetchInterval
 			}
 			// Sleep for retry-after seconds
 			var errDelay *errorTooManyRequests
 			if errors.As(err, &errDelay) && errDelay != nil {
-				delay = time.Duration(errDelay.delay)
+				delay = time.Duration(errDelay.delay) * time.Second
 			}
 		}
 		timer.Reset(delay)
@@ -107,9 +88,32 @@ func worker(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, addr string, i
 	}
 }
 
-func getOrderFromDB(ctx context.Context, db *gorm.DB) (*entity.Order, error) {
+func processOneOrder(ctx context.Context, cfg *Config, db *gorm.DB, client *resty.Client) error {
+	c2, cancel2 := context.WithTimeout(ctx, cfg.FetchTimeout)
+	defer cancel2()
+
+	order, err := getOrderFromDB(c2, db, cfg)
+	if err != nil {
+		return err
+	}
+
+	accrual, err := getAccrual(c2, client, cfg.URL, order.OrderNumber)
+	if err != nil {
+		_ = setOrderStatus(db, order, getOrderFetchStatus(accrual, err))
+		return err
+	}
+
+	err = saveCheckResult(c2, db, order, accrual)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getOrderFromDB(ctx context.Context, db *gorm.DB, cfg *Config) (*entity.Order, error) {
 	var order *entity.Order
-	threshold := time.Now().Add(-fetchTimeout * fetchFactor)
+	threshold := time.Now().Add(-cfg.FetchTimeout * time.Duration(cfg.FetchFactor))
 
 	tx := db.WithContext(ctx).Begin()
 
@@ -137,7 +141,9 @@ func getOrderFromDB(ctx context.Context, db *gorm.DB) (*entity.Order, error) {
 		return nil, err
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
 
 	return order, nil
 }
@@ -180,7 +186,7 @@ func getAccrual(ctx context.Context, client *resty.Client, addr string, number s
 		retryAfterHeader := resp.Header().Get(headerRetryAfter)
 		retryAfter, err := strconv.Atoi(retryAfterHeader)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse retry-after header: %d", resp.StatusCode())
+			return nil, fmt.Errorf("failed to parse retry-after header: %w", err)
 		}
 		return nil, &errorTooManyRequests{delay: retryAfter}
 	case http.StatusOK:

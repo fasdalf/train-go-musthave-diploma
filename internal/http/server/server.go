@@ -10,7 +10,15 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 )
+
+func NewServer(db *gorm.DB, addr string, cryptoKey *string, exp time.Duration) *http.Server {
+	return &http.Server{
+		Addr:    addr,
+		Handler: NewRoutingEngine(db, cryptoKey, exp),
+	}
+}
 
 func StartServer(srv *http.Server, wg *sync.WaitGroup) {
 	wg.Add(1)
@@ -28,7 +36,7 @@ func StartServer(srv *http.Server, wg *sync.WaitGroup) {
 	})()
 }
 
-func NewRoutingEngine(db *gorm.DB, key *string) *gin.Engine {
+func NewRoutingEngine(db *gorm.DB, key *string, exp time.Duration) *gin.Engine {
 	ginCore := gin.New()
 	ginCore.RedirectTrailingSlash = false
 	ginCore.RedirectFixedPath = false
@@ -36,16 +44,16 @@ func NewRoutingEngine(db *gorm.DB, key *string) *gin.Engine {
 	ginCore.Use(slogGin.New(slog.Default()))
 	gzipMW := gzip.Gzip(gzip.DefaultCompression)
 
-	ginCore.POST("/api/user/register", handlers.NewRegisterUserHandler(db, key))
-	ginCore.POST("/api/user/login", handlers.NewLoginUserHandler(db, key))
+	ginCore.POST("/api/user/register", handlers.NewRegisterUser(db, key, exp))
+	ginCore.POST("/api/user/login", handlers.NewLoginUser(db, key, exp))
 
 	userGroup := ginCore.Group("/api/user")
-	userGroup.Use(handlers.NewLoadUserByTokenMiddleware(db, key))
-	userGroup.POST("/orders", handlers.NewAddAccrualOrderHandler(db))
-	userGroup.GET("/orders", gzipMW, handlers.NewGetAccrualOrdersHandler(db))
-	userGroup.GET("/balance", handlers.GetUserBalanceHandler)
-	userGroup.POST("/balance/withdraw", handlers.NewAddWithdrawalOrderHandler(db))
-	userGroup.GET("/withdrawals", gzipMW, handlers.NewGetWithdrawalOrdersHandler(db))
+	userGroup.Use(handlers.NewLoadUserByToken(db, key))
+	userGroup.POST("/orders", handlers.NewAddAccrualOrder(db))
+	userGroup.GET("/orders", gzipMW, handlers.NewGetAccrualOrders(db))
+	userGroup.GET("/balance", handlers.GetUserBalance)
+	userGroup.POST("/balance/withdraw", handlers.NewAddWithdrawalOrder(db))
+	userGroup.GET("/withdrawals", gzipMW, handlers.NewGetWithdrawalOrders(db))
 
 	return ginCore
 }

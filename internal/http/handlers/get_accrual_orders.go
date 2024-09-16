@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"errors"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/db/entity"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -17,20 +15,18 @@ var orderStatusMap = map[string]string{
 	entity.FetchStatusFailure:    "INVALID",
 }
 
-// NewGetAccrualOrdersHandler gin handler
-func NewGetAccrualOrdersHandler(db *gorm.DB) gin.HandlerFunc {
+// NewGetAccrualOrders gin handler
+func NewGetAccrualOrders(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := getUserFromContext(c)
 		if err != nil {
-			slog.Error("user in context is not a user type", "error", err)
-			_ = c.AbortWithError(http.StatusInternalServerError, errors.New("user in context is not a user type"))
+			logAndAbort(c, http.StatusInternalServerError, "user in context is not a user type", err)
 			return
 		}
 		var orders []entity.Order
 		query := db.Model(&entity.Order{}).Where(entity.Order{UserID: user.ID}).Order("updated_at DESC")
 		if err := query.Find(&orders).Error; err != nil {
-			slog.Error("database error", "error", err)
-			_ = c.AbortWithError(http.StatusInternalServerError, errors.New("database error"))
+			logAndAbort(c, http.StatusInternalServerError, "database error", err)
 			return
 		}
 

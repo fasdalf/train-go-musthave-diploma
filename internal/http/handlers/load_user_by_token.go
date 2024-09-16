@@ -1,49 +1,56 @@
 package handlers
 
 import (
-	"errors"
+	"fmt"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/db/entity"
 	"github.com/fasdalf/train-go-musthave-diploma/pkg/jwt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"log/slog"
 	"net/http"
 	"strings"
 )
 
 const currentUserKey = "currentUser"
 
-// NewLoadUserByTokenMiddleware gin middleware
-func NewLoadUserByTokenMiddleware(db *gorm.DB, key *string) gin.HandlerFunc {
+// NewLoadUserByToken gin auth middleware
+func NewLoadUserByToken(db *gorm.DB, key *string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.Request.Header.Get(jwt.AuthHeader)
 		token := strings.Replace(strings.TrimSpace(header), jwt.AuthPrefix, "", 1)
 		if token == "" {
-			slog.Error("missing auth header")
-			_ = c.AbortWithError(http.StatusUnauthorized, errors.New("missing auth header"))
+			logAndAbort(c, http.StatusUnauthorized, "missing auth header", nil)
 			return
 		}
 
 		userID, err := jwt.GetUserID(token, *key)
 		if err != nil {
-			slog.Error("invalid token", "error", err)
-			_ = c.AbortWithError(http.StatusUnauthorized, errors.New("invalid token"))
+			logAndAbort(c, http.StatusUnauthorized, "invalid token", err)
 			return
 		}
 
 		user := &entity.User{ID: userID}
 		if err := db.Where(user).First(user).Error; err != nil {
-			slog.Error("failed to find user", "err", db.Error)
-			_ = c.AbortWithError(http.StatusInternalServerError, errors.New("failed to find user"))
+			logAndAbort(c, http.StatusInternalServerError, "failed to find user", err)
 			return
 		}
 		if user.ID == 0 {
-			slog.Error("user does not exist")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("user does not exist"))
+			logAndAbort(c, http.StatusBadRequest, "user does not exist", nil)
 			return
 		}
 
 		c.Set(currentUserKey, user)
 		c.Next()
 	}
+}
+
+func getUserFromContext(c *gin.Context) (*entity.User, error) {
+	v, ok := c.Get(currentUserKey)
+	if !ok {
+		return nil, fmt.Errorf("current user not found")
+	}
+	user, ok := v.(*entity.User)
+	if !ok {
+		return nil, fmt.Errorf("user in context is not a user type\"")
+	}
+	return user, nil
 }
