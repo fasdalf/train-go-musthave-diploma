@@ -3,8 +3,8 @@ package accrual
 import (
 	"context"
 	"errors"
-	"github.com/fasdalf/train-go-musthave-diploma/internal/catchable"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/db/entity"
+	internalErrors "github.com/fasdalf/train-go-musthave-diploma/internal/errors"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/resources"
 	"gorm.io/gorm"
 	"log/slog"
@@ -50,7 +50,7 @@ func worker(ctx context.Context, wg *sync.WaitGroup, ac AccrualClient, r OrderRe
 				delay = cfg.FetchInterval
 			}
 			// Sleep for retry-after seconds
-			var errDelay *catchable.ErrorTooManyRequests
+			var errDelay *internalErrors.ErrorTooManyRequests
 			if errors.As(err, &errDelay) && errDelay != nil {
 				delay = time.Duration(errDelay.Delay) * time.Second
 			}
@@ -92,7 +92,7 @@ func processOneOrder(ctx context.Context, cfg *Config, ac AccrualClient, r Order
 }
 
 func getOrderFetchStatus(accrual *resources.AccrualOrderResponse, err error) string {
-	if errors.Is(err, catchable.ErrNotRegistered) {
+	if errors.Is(err, internalErrors.ErrNotRegistered) {
 		return entity.FetchStatusFailure
 	}
 	if accrual == nil {

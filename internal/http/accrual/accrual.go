@@ -3,7 +3,7 @@ package accrual
 import (
 	"context"
 	"fmt"
-	"github.com/fasdalf/train-go-musthave-diploma/internal/catchable"
+	internalErrors "github.com/fasdalf/train-go-musthave-diploma/internal/errors"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/resources"
 	"github.com/go-resty/resty/v2"
 	"net/http"
@@ -41,14 +41,14 @@ func (c *AccrualClient) GetAccrual(ctx context.Context, number string) (*resourc
 
 	switch resp.StatusCode() {
 	case http.StatusNoContent:
-		return nil, catchable.ErrNotRegistered
+		return nil, internalErrors.ErrNotRegistered
 	case http.StatusTooManyRequests:
 		retryAfterHeader := resp.Header().Get(headerRetryAfter)
 		retryAfter, err := strconv.Atoi(retryAfterHeader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse retry-after header: %w", err)
 		}
-		return nil, &catchable.ErrorTooManyRequests{Delay: retryAfter}
+		return nil, &internalErrors.ErrorTooManyRequests{Delay: retryAfter}
 	case http.StatusOK:
 		r, ok := resp.Result().(*resources.AccrualOrderResponse)
 		if !ok {

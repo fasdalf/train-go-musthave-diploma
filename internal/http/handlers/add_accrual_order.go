@@ -3,7 +3,9 @@ package handlers
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/db/entity"
+	internalErrors "github.com/fasdalf/train-go-musthave-diploma/internal/errors"
 	"github.com/fasdalf/train-go-musthave-diploma/pkg/luhn"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -15,19 +17,13 @@ import (
 // NewAddAccrualOrder gin handler
 func NewAddAccrualOrder(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		b := bufio.NewReader(c.Request.Body)
-		s, err := b.ReadString(0)
-		if err != nil && !errors.Is(err, io.EOF) {
-			logAndAbort(c, http.StatusBadRequest, "read error", err)
-			return
-		}
-		number := strings.TrimSpace(s)
-		if len(number) == 0 {
-			logAndAbort(c, http.StatusBadRequest, "number is whitespace", err)
-			return
-		}
-		if !luhn.LuhnAlgorithm(number) {
-			logAndAbort(c, http.StatusUnprocessableEntity, "number is mystyped", nil)
+		number, err := getOrderNumber(c)
+		if err != nil {
+			code := http.StatusBadRequest
+			if errors.Is(err, internalErrors.ErrNotRegistered) {
+				code = http.StatusUnprocessableEntity
+			}
+			logAndAbort(c, code, "number is not provided", err)
 			return
 		}
 
@@ -65,4 +61,24 @@ func NewAddAccrualOrder(db *gorm.DB) gin.HandlerFunc {
 
 		c.AbortWithStatus(http.StatusAccepted)
 	}
+}
+
+func getOrderNumber(c *gin.Context) (string, error) {
+	b := bufio.NewReader(c.Request.Body)
+	s, err := b.ReadString(0)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	number := strings.TrimSpace(s)
+	if len(number) == 0 {
+		logAndAbort(c, http.StatusBadRequest, "number is whitespace", err)
+		return "", errors.New("number is whitespace")
+	}
+	if !luhn.LuhnAlgorithm(number) {
+		logAndAbort(c, http.StatusUnprocessableEntity, "number is mystyped", nil)
+		return "", fmt.Errorf("%w number is mystyped", internalErrors.ErrUnprocessableEntity)
+		//return "", fmt.Errorf("%w number is mystyped", catchable.ErrNotRegistered)
+	}
+
+	return number, nil
 }

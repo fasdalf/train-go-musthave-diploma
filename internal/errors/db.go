@@ -1,4 +1,4 @@
-package catchable
+package errors
 
 import (
 	"errors"

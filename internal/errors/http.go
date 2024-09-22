@@ -1,4 +1,4 @@
-package catchable
+package errors
 
 import (
 	"errors"
@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ErrNotRegistered = errors.New("order not registered")
+	ErrNotRegistered       = errors.New("order not registered")
+	ErrUnprocessableEntity = errors.New("unprocessable entity")
 )
 
 type ErrorTooManyRequests struct {
