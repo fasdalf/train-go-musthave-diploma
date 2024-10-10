@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/fasdalf/train-go-musthave-diploma/internal/catchable"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/db/entity"
-	internalErrors "github.com/fasdalf/train-go-musthave-diploma/internal/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"time"
@@ -39,7 +39,7 @@ func (r *OrderRepository) GetOrderByThreshold(ctx context.Context, threshold tim
 	}
 
 	if order.FetchStatus != entity.FetchStatusWaiting && order.UpdatedAt.After(threshold) {
-		return nil, fmt.Errorf("%w for order %s", internalErrors.ErrRaceCondition, order.OrderNumber)
+		return nil, fmt.Errorf("%w for order %s", catchable.ErrRaceCondition, order.OrderNumber)
 	}
 
 	order.FetchStatus = entity.FetchStatusInProgress

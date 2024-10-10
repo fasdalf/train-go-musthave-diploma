@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/fasdalf/train-go-musthave-diploma/internal/catchable"
 	"github.com/fasdalf/train-go-musthave-diploma/internal/db/entity"
-	internalErrors "github.com/fasdalf/train-go-musthave-diploma/internal/errors"
 	"github.com/fasdalf/train-go-musthave-diploma/pkg/luhn"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -20,7 +20,7 @@ func NewAddAccrualOrder(db *gorm.DB) gin.HandlerFunc {
 		number, err := getOrderNumber(c)
 		if err != nil {
 			code := http.StatusBadRequest
-			if errors.Is(err, internalErrors.ErrNotRegistered) {
+			if errors.Is(err, catchable.ErrNotRegistered) {
 				code = http.StatusUnprocessableEntity
 			}
 			logAndAbort(c, code, "number is not provided", err)
@@ -76,7 +76,7 @@ func getOrderNumber(c *gin.Context) (string, error) {
 	}
 	if !luhn.LuhnAlgorithm(number) {
 		logAndAbort(c, http.StatusUnprocessableEntity, "number is mystyped", nil)
-		return "", fmt.Errorf("%w number is mystyped", internalErrors.ErrUnprocessableEntity)
+		return "", fmt.Errorf("%w number is mystyped", catchable.ErrUnprocessableEntity)
 		//return "", fmt.Errorf("%w number is mystyped", catchable.ErrNotRegistered)
 	}
 
